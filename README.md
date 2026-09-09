@@ -1,5 +1,4 @@
 # food-price-forecast-east-java-cities
-# Price Forecasts for Popular Food Staples in East Java Cities
 
 ## Project Overview
 
