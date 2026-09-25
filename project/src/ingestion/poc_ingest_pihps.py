@@ -23,8 +23,14 @@ PROVINCE_ID = "16"
 COMMODITIES = {
     "bawang_merah": "cat_5",
     "cabai_merah": "cat_7",
-    "cabai_rawit": "cat_8",
+    "cabai_rawi": "cat_8",
 }
+
+# SUB_COMMODITIES = {
+#     "bawang_merah_ukuran_sedang": "5_11",
+#     "cabai_merah_keriting": "7_14",
+#     "cabai_rawit_merah": "8_16",
+# }
 
 TARGET_CITIES = {
     "Kota Surabaya",
@@ -32,10 +38,7 @@ TARGET_CITIES = {
     "Kota Kediri",
     "Kota Blitar",
     "Kota Probolinggo",
-    "Kota Pasuruan",
-    "Kota Mojokerto",
     "Kota Madiun",
-    "Kota Batu",
 }
 
 CITY_FIELDS = (
