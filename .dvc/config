@@ -1,0 +1,4 @@
+[core]
+    remote = data_project
+['remote "data_project"']
+    url = ../data_project
