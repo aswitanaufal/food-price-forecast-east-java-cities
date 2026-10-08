@@ -56,3 +56,36 @@ food-price-forecast-east-java-cities/
     This project follows a simplified GitHub Flow workflow.
     The main branch is used as the stable branch. New features or experiments should be developed in separate branches.
 
+## Running Auto Ingest and Preprocess Data
+The workflow is configured via .github/workflows/data_ingestion.yml and performs the following:
+- Automated Schedule: Runs automatically every weekday (Monday to Friday) at 13:30 WIB (06:30 UTC).
+
+Manual Trigger: Can be manually executed at any time from the GitHub interface:
+1. Go to the Actions tab in this repository.
+2. Select Automatic Ingestion and Preprocessing Data from the left sidebar.
+3. Click Run workflow, select the target branch, and confirm.
+
+Output: For now will be generating updates automatically committed and pushed to the ingestion-experiment branch.
+
+Otherwise, this process can be run manually on local environment:
+1. Install the requirement and dependencies
+2. Run ingestion file by running: python project/src/ingest_data.py
+3. Wait until ingesting process success and data will be saved in project/data/raw/
+4. Run preprocessing file by running: python project/src/preprocess.py
+5. Preprocessed data will be saved in project/data/processed/
+
+## Data Versioning
+For now, this project uses DVC (Data Version Control) to track changes in raw datasets generated from PIHPS and Open-Meteo data ingestion process. DVC allows each dataset update to be recorded as a new version while keeping the actual dataset separate from Git source code. This method used some workflow:
+1. Data Ingestion: new raw data will automatically collected from PIHPS and Open-Meteo based on Auto Ingest above
+2. After new data is collected, raw data will tracked using DVC:
+   dvc add project/data/raw/pihps
+   dvc add project/data/raw/open_meteo
+  This generates .dvc pointer files that store metadata and hashes for the tracked datasets.
+3. DVC can be used to check whether the dataset has changed:
+   dvc status
+   dvc diff
+4. The updated dataset is pushed to the configured local DVC storage:
+   dvc push
+5. Commit the dataset version metadata to GitHub
+6. To restore dataset version use:
+   dvc pull
