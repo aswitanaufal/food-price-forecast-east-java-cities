@@ -1,0 +1,6 @@
+outs:
+- md5: 60276a7fc1666706d113ffc8b5326c11.dir
+  size: 5799
+  nfiles: 3
+  hash: md5
+  path: pihps
