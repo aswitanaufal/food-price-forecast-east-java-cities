@@ -1,0 +1,5 @@
+outs:
+- md5: f58b144f3adb06d08d493db0d1bb1a20
+  size: 94324
+  hash: md5
+  path: open_meteo_processed.csv
