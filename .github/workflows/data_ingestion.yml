@@ -26,7 +26,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install requests pandas
+          pip install -r requirement.txt
 
       - name: Run data ingestion
         run: |
@@ -35,6 +35,17 @@ jobs:
       - name: Run preprocessing
         run: |
           python project/src/preprocess.py
+      
+      - name: Run Feature Engineering
+        run: |
+          python project/src/feature_engineering.py
+      
+      - name: Push to dvc
+        run: |
+          dvc remote modify --local myremote auth basic
+          dvc remote modify --local myremote user ${{ secrets.DVC_USER }}
+          dvc remote modify --local myremote password ${{ secrets.DVC_PASSWORD }}
+          dvc push -r myremote
 
       - name: Check generated files
         run: |

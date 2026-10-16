@@ -1,6 +1,7 @@
 import json
+import os
 import time
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 import requests
 
@@ -37,6 +38,8 @@ PIHPS_COMMODITIES = {
 
 
 OPEN_METEO_URL = "https://api.open-meteo.com/v1/forecast"
+
+OPEN_METEO_HISTORICAL_URL = ("https://historical-forecast-api.open-meteo.com/v1/forecast")
 
 # latitude and longitude kota
 CITIES = {
@@ -125,15 +128,48 @@ def request_with_retry(url, params, headers=None, source_name="API", max_retries
 
 
 # ingest pihps data
+def _get_ingestion_date_range():
+    today = datetime.now().date()
+
+    start_value = os.getenv("INGEST_START_DATE")
+    end_value = os.getenv("INGEST_END_DATE")
+
+    # Jika tidak ada tanggal yang diatur, gunakan mode harian.
+    if not start_value and not end_value:
+        return today - timedelta(days=1), today, False
+
+    # Kedua tanggal harus diisi bersamaan.
+    if not start_value or not end_value:
+        raise ValueError(
+            "INGEST_START_DATE dan INGEST_END_DATE "
+            "harus diisi bersamaan."
+        )
+
+    try:
+        start_date = date.fromisoformat(start_value)
+        end_date = date.fromisoformat(end_value)
+    except ValueError as error:
+        raise ValueError(
+            "Tanggal harus menggunakan format YYYY-MM-DD."
+        ) from error
+
+    if start_date > end_date:
+        raise ValueError(
+            "Tanggal mulai tidak boleh setelah tanggal selesai."
+        )
+
+    return start_date, end_date, True
+
+
 def fetch_pihps_data():
 
     print("\n=== INGESTING PIHPS DATA ===")
 
-    today = datetime.now().date()
-    yesterday = today - timedelta(days=1)
+    start_date, end_date, _ = _get_ingestion_date_range()
+    start_date_value = start_date.strftime("%Y-%m-%d")
+    end_date_value = end_date.strftime("%Y-%m-%d")
 
-    start_date = yesterday.strftime("%Y-%m-%d")
-    end_date = today.strftime("%Y-%m-%d")
+    print(f"[INFO] PIHPS date range: {start_date_value} to {end_date_value}")
 
     timestamp = get_timestamp()
 
@@ -157,8 +193,8 @@ def fetch_pihps_data():
             "showKota": "true",
             "showPasar": "false",
             "tipe_laporan": PIHPS_REPORT_TYPE,
-            "start_date": start_date,
-            "end_date": end_date,
+            "start_date": start_date_value,
+            "end_date": end_date_value,
         }
 
         response = request_with_retry(
@@ -205,11 +241,28 @@ def fetch_pihps_data():
 
 
 # ingest open-meteo data
+
 def fetch_open_meteo_data():
 
     print("\n=== INGESTING OPEN-METEO DATA ===")
 
+    start_date, end_date, historical_mode = (
+        _get_ingestion_date_range()
+    )
+
     timestamp = get_timestamp()
+
+    if historical_mode:
+        api_url = OPEN_METEO_HISTORICAL_URL
+        print(
+            f"[INFO] Historical range: "
+            f"{start_date} to {end_date}"
+        )
+        source_name = "Open-Meteo Historical Forecast API"
+    else:
+        api_url = OPEN_METEO_URL
+        print("[INFO] Using daily forecast mode")
+        source_name = "Open-Meteo Forecast API"
 
     success = []
     failed = []
@@ -229,28 +282,37 @@ def fetch_open_meteo_data():
                 "wind_speed_10m,"
                 "weather_code"
             ),
-            "forecast_days": 2,
             "timezone": "Asia/Jakarta",
         }
 
+        if historical_mode:
+            params["start_date"] = start_date.isoformat()
+            params["end_date"] = end_date.isoformat()
+        else:
+            params["forecast_days"] = 2
+
         response = request_with_retry(
-            url=OPEN_METEO_URL,
+            url=api_url,
             params=params,
             source_name=f"Open-Meteo {city_name}",
         )
 
         if response is None:
-
             failed.append(city_name)
-
             continue
 
         try:
             data = response.json()
 
-        except ValueError as error:
+            if data.get("error"):
+                raise ValueError(
+                    data.get("reason", "Unknown API error")
+                )
 
-            print(f"[FAILED] Response Open-Meteo " f"{city_name} invalid JSON file: {error}")
+        except ValueError as error:
+            print(
+                f"[FAILED] Open-Meteo {city_name}: {error}"
+            )
             failed.append(city_name)
             continue
 
@@ -258,8 +320,10 @@ def fetch_open_meteo_data():
             "city": city_name,
             "latitude": latitude,
             "longitude": longitude,
-            "source": "Open-Meteo Forecast API",
+            "source": source_name,
             "ingestion_timestamp": datetime.now().isoformat(),
+            "requested_start_date": start_date.isoformat(),
+            "requested_end_date": end_date.isoformat(),
         }
 
         safe_city_name = (
@@ -272,13 +336,14 @@ def fetch_open_meteo_data():
             f"open_meteo_{safe_city_name}_{timestamp}.json"
         )
 
-        output_path = (
-            OPEN_METEO_RAW_DIR / output_filename
-        )
+        output_path = OPEN_METEO_RAW_DIR / output_filename
 
         save_json(data, output_path)
 
-        print(f"[SUCCESS] Open-Meteo {city_name} " f"saved to {output_path}")
+        print(
+            f"[SUCCESS] Open-Meteo {city_name} "
+            f"saved to {output_path}"
+        )
         success.append(city_name)
 
         time.sleep(1)
@@ -291,7 +356,6 @@ def fetch_open_meteo_data():
         print("Failed cities:")
         for city in failed:
             print(f"- {city}")
-
 
 def main():
 
