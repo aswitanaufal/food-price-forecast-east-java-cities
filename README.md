@@ -90,3 +90,33 @@ For now, this project uses DVC (Data Version Control) to track changes in raw da
 6. To restore dataset version use:
    dvc pull
 
+## MLflow
+This project leverages **MLflow** with a local SQLite backend (`sqlite:///mlflow.db`) to track hyperparameter configurations, evaluation metrics, pipeline metadata, and serialized model artifacts across training runs.
+
+### Workflow pipeline:
+To run a complete end-to-end experiment, execute the pipeline components in sequence:
+1. Ingest raw data
+2. Preprocess raw data
+3. Generate features/feature engineering
+4. Train and track model
+
+Every execution of train.py automatically logs the following information under the "Food Price Forecasting - East Java" experiment:
+1. Parameters: model, alpha, split (80/20 time-based), training_rows, testing_rows.
+2. Metrics: MAE, RMSE, MAPE.
+3. Tags:
+    - task: forecasting
+    - model_type: regression
+    - algorithm: ridge
+    - framework: scikit-learn
+4. Artifacts: Full Scikit-learn pipeline (preprocessing + Ridge regressor) saved under model_dir/ using cloudpickle serialization along with model input examples.
+
+To view the experiments in MLflow UI:
+1. Launch MLflow UI from the root directory: 
+mlflow ui --backend-store-uri sqlite:///mlflow.db
+2. Access the Dashboard:
+    - Local Environment: Open http://127.0.0.1:5000 in your web browser.
+    - GitHub Codespaces: Open the Ports tab in the bottom panel and click the forwarded link/globe icon for port 5000.
+3. Analyze Results:
+    - Compare runs side-by-side by selecting individual runs and clicking Compare.
+    - Customize displayed table columns to sort models by metrics (MAE, RMSE, MAPE).
+    - Inspect saved artifacts, input schemas, and environment dependencies directly inside the UI under model_dir.
