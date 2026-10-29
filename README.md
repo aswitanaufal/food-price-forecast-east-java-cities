@@ -120,3 +120,55 @@ mlflow ui --backend-store-uri sqlite:///mlflow.db
     - Compare runs side-by-side by selecting individual runs and clicking Compare.
     - Customize displayed table columns to sort models by metrics (MAE, RMSE, MAPE).
     - Inspect saved artifacts, input schemas, and environment dependencies directly inside the UI under model_dir.
+
+
+## Model Registry, Versioning, and Inference
+
+### Registered Model
+
+This project uses MLflow Model Registry to manage the lifecycle of Ridge Regression models for East Java food price forecasting.
+
+The registered model name is `EastJavaFoodPriceForecast`. Each registered version is connected to its source MLflow run, including its hyperparameters and evaluation metrics.
+
+### Model Evaluation and Selection
+
+Models are evaluated using MAE, RMSE, and MAPE on a chronological test set.
+
+RMSE is the primary selection metric, while MAE and MAPE are used as supporting metrics. A model is promoted to Production only after reviewing its test results.
+
+- Registered model: `EastJavaFoodPriceForecast`
+- Active version: `v[actual version]`
+- Active Run ID: `[actual Run ID]`
+- Test RMSE: `[actual RMSE]`
+- Test MAE: `[actual MAE]`
+- Selection rationale: `[explain why this version was selected]`
+
+### Model Versioning with MLflow
+
+MLflow Model Registry maintains the model version history. The initial registered model becomes the first version if the registered model name has not been used before. Subsequent registrations under the same name create additional versions.
+
+The selected model transitions through the Staging and Production stages. The `champion` alias identifies the version selected for inference.
+
+### Artifact and Dataset Lineage with DVC
+
+The selected model artifact and its `model_release.yaml` manifest are stored in a release directory under `project/models/releases/`.
+
+The manifest records the model Registry version, source Run ID, metrics, parameters, dataset path, and DVC hash of the training feature dataset.
+
+DVC tracks the release directory through a pointer file such as:
+
+`project/models/releases/v1.dvc`
+
+Git stores the DVC pointer and project source files, while the configured local DVC remote stores the corresponding model release artifacts.
+
+### Inference Verification
+
+The model is loaded programmatically through `mlflow.pyfunc.load_model()` and tested using the feature columns expected by the Ridge Regression pipeline.
+
+The inference script uses the Production model URI:
+
+`models:/EastJavaFoodPriceForecast/Production`
+
+For environments that use MLflow model aliases, the active model can also be loaded through:
+
+`models:/EastJavaFoodPriceForecast@champion`
