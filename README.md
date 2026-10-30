@@ -172,3 +172,98 @@ The inference script uses the Production model URI:
 For environments that use MLflow model aliases, the active model can also be loaded through:
 
 `models:/EastJavaFoodPriceForecast@champion`
+
+
+## Model Inference API and Docker
+
+### Overview
+
+This project provides a Flask REST API for serving the trained Ridge Regression model used for East Java food price forecasting.
+
+The trained model is exported from MLflow Model Registry and serialized as `model.joblib`. The model includes its preprocessing pipeline, including numerical imputation, standardization, and categorical encoding.
+
+The inference API exposes two endpoints:
+
+- `GET /health`: Checks whether the service is running and the model is loaded.
+- `POST /predict`: Accepts food price and weather features as JSON and returns the predicted price.
+
+### Project Structure
+
+project/deployment/
+├── app.py
+├── Dockerfile
+├── requirements.txt
+├── .dockerignore
+└── model.joblib
+
+### Exporting the Model
+
+The selected registered model is exported from MLflow before building the Docker image.
+
+```bash
+python project/src/export_model_docker.py
+```
+
+The exported model is saved to `project/deployment/model.joblib`.
+
+### Build the Docker Image
+
+Run the following command from the repository root:
+
+docker build \
+  -f project/deployment/Dockerfile \
+  -t food-price-api:1.0 \
+  project/deployment
+
+### Run the Container
+
+docker run -d \
+  --name food-price-api \
+  -p 8000:8000 \
+  food-price-api:1.0
+
+Check the running container using: docker ps
+
+### Health Check
+
+curl http://localhost:8000/health
+
+### Inference Request
+
+Send a POST request to `/predict` from terminal/bash:
+
+curl -X POST http://localhost:8000/predict \
+  -H "Content-Type: application/json" \
+  -d '{
+    "instances": [
+      {
+        "price_lag_1": 30500,
+        "price_lag_7": 29000,
+        "rolling_mean_7": 30000,
+        "price_change": 500,
+        "day_of_week": 3,
+        "month": 10,
+        "temperature_mean": 28.5,
+        "temperature_max": 33.2,
+        "precipitation_sum": 2.0,
+        "humidity_mean": 78.0,
+        "wind_speed_mean": 8.5,
+        "city": "Kota Surabaya",
+        "commodity": "Cabai Rawit",
+        "weather_code": "61"
+      }
+    ]
+  }'
+
+The API returns a JSON response containing the predicted food price.
+
+### Model Artifact Versioning
+
+The exported `model.joblib` is tracked using DVC. Git stores the DVC pointer file, while the configured DVC remote stores the corresponding model artifact.
+
+Before building the image in a fresh working environment, restore the model artifact if necessary:
+
+dvc pull project/deployment/model.joblib.dvc
+
+
+The Docker image contains the application, the required Python dependencies, and the exported model. The running API therefore does not require access to the MLflow UI or its tracking database for every prediction request.
