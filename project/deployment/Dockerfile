@@ -1,5 +1,5 @@
 
-FROM python:3.11-slim
+FROM python:3.12-slim
 
 # Reduce unnecessary Python file
 ENV PYTHONDONTWRITEBYTECODE=1

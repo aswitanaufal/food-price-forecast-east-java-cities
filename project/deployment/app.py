@@ -44,6 +44,18 @@ if not MODEL_PATH.exists():
 model = joblib.load(MODEL_PATH)
 
 
+@app.get("/")
+def index():
+    return jsonify({
+        "service": "food-price-api",
+        "status": "running",
+        "endpoints": {
+            "health": "GET /health",
+            "predict": "POST /predict",
+        },
+    }), 200
+
+
 def normalize_weather_code(value):
     """Match the categorical representation used during training."""
     if value is None or pd.isna(value):
