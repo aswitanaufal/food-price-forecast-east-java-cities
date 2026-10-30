@@ -17,3 +17,8 @@ dvc>=3.0.0
 
 # Interactive Notebook
 jupyter>=1.0.0
+
+# Deployment
+joblib
+Flask
+docker
