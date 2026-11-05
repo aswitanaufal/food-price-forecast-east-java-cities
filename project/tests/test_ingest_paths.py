@@ -2,8 +2,9 @@ import importlib.util
 from pathlib import Path
 
 
-ROOT = Path(__file__).resolve().parents[1]
-MODULE_PATH = ROOT / "src" / "ingest_data.py"
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+REPOSITORY_ROOT = PROJECT_ROOT.parents[0]
+MODULE_PATH = PROJECT_ROOT / "src" / "ingest_data.py"
 
 
 spec = importlib.util.spec_from_file_location("ingest_data", MODULE_PATH)
@@ -12,7 +13,7 @@ spec.loader.exec_module(module)
 
 
 def test_raw_dirs_resolve_to_project_data_raw():
-    expected_root = ROOT
+    expected_root = REPOSITORY_ROOT
     expected_raw = expected_root / "project" / "data" / "raw"
 
     assert module.BASE_DIR == expected_root

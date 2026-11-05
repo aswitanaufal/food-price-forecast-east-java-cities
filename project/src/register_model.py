@@ -1,13 +1,13 @@
 
 from pathlib import Path
 import argparse
+import os
 import re
 
 import mlflow
 from mlflow import MlflowClient
 
 
-TRACKING_URI = "sqlite:///mlflow.db"
 MODEL_NAME = "EastJavaFoodPriceForecast"
 
 DATASET_DVC_POINTER = Path(
@@ -48,8 +48,9 @@ def main():
 
     args = parser.parse_args()
 
-    mlflow.set_tracking_uri(TRACKING_URI)
-    mlflow.set_registry_uri(TRACKING_URI)
+    tracking_uri = os.getenv("MLFLOW_TRACKING_URI") or "sqlite:///mlflow.db"
+    mlflow.set_tracking_uri(tracking_uri)
+    mlflow.set_registry_uri(os.getenv("MLFLOW_REGISTRY_URI") or tracking_uri)
 
     client = MlflowClient()
     run = client.get_run(args.run_id)
@@ -159,6 +160,17 @@ def main():
             f"metric_{metric_name.lower()}",
             str(metric_value),
         )
+
+    if not hasattr(client, "transition_model_version_stage"):
+        raise RuntimeError(
+            "The configured MLflow registry does not support model stages."
+        )
+    client.transition_model_version_stage(
+        name=MODEL_NAME,
+        version=version,
+        stage="Staging",
+        archive_existing_versions=False,
+    )
 
     print("\n=== MODEL REGISTERED ===")
     print("Model name:", MODEL_NAME)

@@ -6,7 +6,8 @@ from pathlib import Path
 import requests
 
 
-RAW_DIR = Path("project/data/raw")
+BASE_DIR = Path(__file__).resolve().parents[2]
+RAW_DIR = BASE_DIR / "project" / "data" / "raw"
 
 PIHPS_RAW_DIR = RAW_DIR / "pihps"
 OPEN_METEO_RAW_DIR = RAW_DIR / "open_meteo"

@@ -74,6 +74,43 @@ Otherwise, this process can be run manually on local environment:
 4. Run preprocessing file by running: python project/src/preprocess.py
 5. Preprocessed data will be saved in project/data/processed/
 
+## MLOps Automation (Code as a Trigger)
+
+The workflow [.github/workflows/mlops-automation.yaml](.github/workflows/mlops-automation.yaml)
+runs pytest on every pull request and on pushes to `main`. A push to `main` continues
+automatically through DVC data pull, model training, metric validation, and MLflow
+registration as `Staging`. A pull request intentionally stops after testing so that
+repository secrets are not exposed to untrusted code.
+
+### Public MLflow setup
+
+Use a public MLflow tracking server (for example, a hosted MLflow service or a
+self-hosted HTTPS server), not the local `sqlite:///mlflow.db` file. Add these
+repository secrets under **Settings > Secrets and variables > Actions**:
+
+- `MLFLOW_TRACKING_URI`: public MLflow tracking URL.
+- `MLFLOW_REGISTRY_URI`: registry URL; use the same value when tracking and registry
+  share one server.
+- `MLFLOW_TRACKING_USERNAME` and `MLFLOW_TRACKING_PASSWORD`: credentials for that
+  server.
+- `DVC_REMOTE_URL`, `DVC_USER`, and `DVC_PASSWORD`: the DVC remote and credentials
+  used by the ingestion workflow.
+
+The workflow does not place credentials in source code. The values `MAX_MAE`,
+`MAX_RMSE`, and `MAX_MAPE` are currently set in the workflow to `3500`, `5000`,
+and `30`; replace them with the exact thresholds from LK-01 before submission.
+
+### Demonstrating the chain
+
+1. Commit and push a small change to `main`, such as changing `--alpha 0.1` in
+   the workflow or a preprocessing parameter.
+2. Open **Actions > MLOps Automation** and show the successful `Automated tests`
+   and `Train, evaluate, and register` jobs.
+3. Download the `mlops-training-evidence` artifact. It contains the run ID,
+   metrics, thresholds, and validation result.
+4. Open the public MLflow UI, locate experiment `Food Price Forecasting - East Java`,
+   and show the registered `EastJavaFoodPriceForecast` version with stage `Staging`.
+
 ## Data Versioning
 For now, this project uses DVC (Data Version Control) to track changes in raw datasets generated from PIHPS and Open-Meteo data ingestion process. DVC allows each dataset update to be recorded as a new version while keeping the actual dataset separate from Git source code. This method used some workflow:
 1. Data Ingestion: new raw data will automatically collected from PIHPS and Open-Meteo based on Auto Ingest above

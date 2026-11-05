@@ -1,3 +1,6 @@
+import argparse
+import json
+import os
 from pathlib import Path
 
 import mlflow
@@ -5,7 +8,6 @@ import mlflow.sklearn
 import numpy as np
 import pandas as pd
 import yaml
-import argparse
 
 from sklearn.compose import ColumnTransformer
 from sklearn.impute import SimpleImputer
@@ -15,9 +17,11 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
 DATA_FILE = Path("project/data/processed/food_price_features.csv")
+TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI") or "sqlite:///mlflow.db"
+REGISTRY_URI = os.getenv("MLFLOW_REGISTRY_URI") or TRACKING_URI
 
-# simpan di mlflow
-mlflow.set_tracking_uri("sqlite:///mlflow.db")
+mlflow.set_tracking_uri(TRACKING_URI)
+mlflow.set_registry_uri(REGISTRY_URI)
 mlflow.set_experiment("Food Price Forecasting - East Java")
 
 yaml.add_representer(
@@ -58,6 +62,11 @@ def parse_args():
         type=float,
         default=0.1,
         help="Regularization strength for Regression (default: 0.1)",
+    )
+    parser.add_argument(
+        "--metrics-output",
+        type=Path,
+        help="Optional JSON file for the regression run ID and metrics.",
     )
     return parser.parse_args()
 
@@ -244,6 +253,19 @@ def main():
 
         print(f"\n[RESULT] Regression alpha={alpha}:")
         print(metrics)
+        if args.metrics_output:
+            args.metrics_output.parent.mkdir(parents=True, exist_ok=True)
+            args.metrics_output.write_text(
+                json.dumps(
+                    {
+                        "run_id": mlflow.active_run().info.run_id,
+                        "metrics": metrics,
+                    },
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+            print(f"[INFO] Training summary: {args.metrics_output}")
 
     print("\n[SUCCESS] Experiment completed, check MLflow UI for details")
 
