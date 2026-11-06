@@ -1,6 +1,5 @@
 import argparse
 import json
-import os
 from pathlib import Path
 
 import mlflow
@@ -16,12 +15,10 @@ from sklearn.metrics import mean_absolute_error, mean_squared_error
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
-DATA_FILE = Path("project/data/processed/food_price_features.csv")
-TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI") or "sqlite:///mlflow.db"
-REGISTRY_URI = os.getenv("MLFLOW_REGISTRY_URI") or TRACKING_URI
+from mlflow_config import configure_mlflow
 
-mlflow.set_tracking_uri(TRACKING_URI)
-mlflow.set_registry_uri(REGISTRY_URI)
+DATA_FILE = Path("project/data/processed/food_price_features.csv")
+configure_mlflow()
 mlflow.set_experiment("Food Price Forecasting - East Java")
 
 yaml.add_representer(

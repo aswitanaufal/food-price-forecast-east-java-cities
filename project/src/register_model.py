@@ -7,6 +7,8 @@ import re
 import mlflow
 from mlflow import MlflowClient
 
+from mlflow_config import configure_mlflow
+
 
 MODEL_NAME = "EastJavaFoodPriceForecast"
 
@@ -48,9 +50,7 @@ def main():
 
     args = parser.parse_args()
 
-    tracking_uri = os.getenv("MLFLOW_TRACKING_URI") or "sqlite:///mlflow.db"
-    mlflow.set_tracking_uri(tracking_uri)
-    mlflow.set_registry_uri(os.getenv("MLFLOW_REGISTRY_URI") or tracking_uri)
+    configure_mlflow()
 
     client = MlflowClient()
     run = client.get_run(args.run_id)

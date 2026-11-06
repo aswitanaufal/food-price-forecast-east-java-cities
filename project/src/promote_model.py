@@ -4,8 +4,8 @@ import argparse
 import mlflow
 from mlflow import MlflowClient
 
+from mlflow_config import configure_mlflow
 
-TRACKING_URI = "sqlite:///mlflow.db"
 MODEL_NAME = "EastJavaFoodPriceForecast"
 
 
@@ -28,8 +28,7 @@ def main():
 
     args = parser.parse_args()
 
-    mlflow.set_tracking_uri(TRACKING_URI)
-    mlflow.set_registry_uri(TRACKING_URI)
+    configure_mlflow()
 
     client = MlflowClient()
 

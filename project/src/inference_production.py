@@ -4,8 +4,7 @@ from pathlib import Path
 import mlflow
 import pandas as pd
 
-
-TRACKING_URI = "sqlite:///mlflow.db"
+from mlflow_config import configure_mlflow
 
 MODEL_URI = (
     "models:/EastJavaFoodPriceForecast/Production"
@@ -51,8 +50,7 @@ def normalize_weather_code(value):
 
 
 def main():
-    mlflow.set_tracking_uri(TRACKING_URI)
-    mlflow.set_registry_uri(TRACKING_URI)
+    configure_mlflow()
 
     if not DATA_FILE.exists():
         raise FileNotFoundError(

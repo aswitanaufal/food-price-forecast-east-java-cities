@@ -37,10 +37,9 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     env:
-      MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI }}
-      MLFLOW_REGISTRY_URI: ${{ secrets.MLFLOW_REGISTRY_URI }}
-      MLFLOW_TRACKING_USERNAME: ${{ secrets.MLFLOW_TRACKING_USERNAME }}
-      MLFLOW_TRACKING_PASSWORD: ${{ secrets.MLFLOW_TRACKING_PASSWORD }}
+      DAGSHUB_TOKEN: ${{ secrets.DAGSHUB_TOKEN }}
+      DAGSHUB_REPO_OWNER: aswitanaufal
+      DAGSHUB_REPO_NAME: food-price-forecast-east-java-cities
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -52,16 +51,14 @@ jobs:
           pip install -r requirement.txt
       - name: Pull latest DVC data
         env:
-          DVC_REMOTE_URL: ${{ secrets.DVC_REMOTE_URL }}
-          DVC_USER: ${{ secrets.DVC_USER }}
-          DVC_PASSWORD: ${{ secrets.DVC_PASSWORD }}
+          DAGSHUB_USER: aswitanaufal
+          DAGSHUB_TOKEN: ${{ secrets.DAGSHUB_TOKEN }}
         run: |
-          test -n "$DVC_REMOTE_URL"
-          dvc remote add -f myremote "$DVC_REMOTE_URL"
-          dvc remote modify --local myremote auth basic
-          dvc remote modify --local myremote user "$DVC_USER"
-          dvc remote modify --local myremote password "$DVC_PASSWORD"
-          dvc pull -r myremote
+          test -n "$DAGSHUB_TOKEN"
+          dvc remote modify --local origin auth basic
+          dvc remote modify --local origin user "$DAGSHUB_USER"
+          dvc remote modify --local origin password "$DAGSHUB_TOKEN"
+          dvc pull -r origin
       - name: Train model
         run: |
           python project/src/train.py \

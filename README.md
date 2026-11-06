@@ -84,17 +84,14 @@ repository secrets are not exposed to untrusted code.
 
 ### Public MLflow setup
 
-Use a public MLflow tracking server (for example, a hosted MLflow service or a
-self-hosted HTTPS server), not the local `sqlite:///mlflow.db` file. Add these
-repository secrets under **Settings > Secrets and variables > Actions**:
+This project uses the public DagsHub repository as both its DVC remote and MLflow
+tracking/registry backend. Add `DAGSHUB_TOKEN` under **Settings > Secrets and
+variables > Actions**. The workflows authenticate DVC with the DagsHub username
+and token, while `project/src/mlflow_config.py` calls `dagshub.init(...)` before
+training, validation, and registration.
 
-- `MLFLOW_TRACKING_URI`: public MLflow tracking URL.
-- `MLFLOW_REGISTRY_URI`: registry URL; use the same value when tracking and registry
-  share one server.
-- `MLFLOW_TRACKING_USERNAME` and `MLFLOW_TRACKING_PASSWORD`: credentials for that
-  server.
-- `DVC_REMOTE_URL`, `DVC_USER`, and `DVC_PASSWORD`: the DVC remote and credentials
-  used by the ingestion workflow.
+The local `sqlite:///mlflow.db` file remains only as a local-development fallback
+when `DAGSHUB_TOKEN` is not set. It is not used by the GitHub Actions jobs.
 
 The workflow does not place credentials in source code. The values `MAX_MAE`,
 `MAX_RMSE`, and `MAX_MAPE` are currently set in the workflow to `3500`, `5000`,
@@ -128,7 +125,11 @@ For now, this project uses DVC (Data Version Control) to track changes in raw da
    dvc pull
 
 ## MLflow
-This project leverages **MLflow** with a local SQLite backend (`sqlite:///mlflow.db`) to track hyperparameter configurations, evaluation metrics, pipeline metadata, and serialized model artifacts across training runs.
+This project uses DagsHub as the shared MLflow tracking and model registry backend.
+The GitHub Actions workflows authenticate with `DAGSHUB_TOKEN`, and
+`project/src/mlflow_config.py` calls `dagshub.init` for the configured DagsHub
+repository. Local execution without that token falls back to
+`sqlite:///mlflow.db`.
 
 ### Workflow pipeline:
 To run a complete end-to-end experiment, execute the pipeline components in sequence:
@@ -147,13 +148,10 @@ Every execution of train.py automatically logs the following information under t
     - framework: scikit-learn
 4. Artifacts: Full Scikit-learn pipeline (preprocessing + Ridge regressor) saved under model_dir/ using cloudpickle serialization along with model input examples.
 
-To view the experiments in MLflow UI:
-1. Launch MLflow UI from the root directory: 
-mlflow ui --backend-store-uri sqlite:///mlflow.db
-2. Access the Dashboard:
-    - Local Environment: Open http://127.0.0.1:5000 in your web browser.
-    - GitHub Codespaces: Open the Ports tab in the bottom panel and click the forwarded link/globe icon for port 5000.
-3. Analyze Results:
+To view the experiments:
+1. Open the DagsHub repository page and select the MLflow experiments/runs view.
+2. Select `Food Price Forecasting - East Java`.
+3. Analyze runs, metrics, parameters, and model artifacts.
     - Compare runs side-by-side by selecting individual runs and clicking Compare.
     - Customize displayed table columns to sort models by metrics (MAE, RMSE, MAPE).
     - Inspect saved artifacts, input schemas, and environment dependencies directly inside the UI under model_dir.
@@ -196,7 +194,8 @@ DVC tracks the release directory through a pointer file such as:
 
 `project/models/releases/v1.dvc`
 
-Git stores the DVC pointer and project source files, while the configured local DVC remote stores the corresponding model release artifacts.
+Git stores the DVC pointer and project source files, while the configured DagsHub
+DVC remote stores the corresponding model release artifacts.
 
 ### Inference Verification
 

@@ -9,6 +9,7 @@ openpyxl>=3.1.0
 
 # MLOps & Experiment Tracking
 mlflow>=2.10.0
+dagshub>=0.5.0
 pyyaml>=6.0
 cloudpickle>=3.0.0
 

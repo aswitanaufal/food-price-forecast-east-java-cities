@@ -2,3 +2,5 @@
     remote = localstorage
 ['remote "localstorage"']
     url = ../../dvc-storage
+['remote "origin"']
+    url = https://dagshub.com/aswitanaufal/food-price-forecast-east-java-cities.dvc

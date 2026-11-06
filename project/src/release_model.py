@@ -7,8 +7,8 @@ import mlflow
 from mlflow import MlflowClient
 import yaml
 
+from mlflow_config import configure_mlflow
 
-TRACKING_URI = "sqlite:///mlflow.db"
 MODEL_NAME = "EastJavaFoodPriceForecast"
 
 DATASET_DVC_POINTER = Path(
@@ -73,8 +73,7 @@ def main():
 
     args = parser.parse_args()
 
-    mlflow.set_tracking_uri(TRACKING_URI)
-    mlflow.set_registry_uri(TRACKING_URI)
+    configure_mlflow()
 
     client = MlflowClient()
 
