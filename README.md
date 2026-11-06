@@ -90,6 +90,11 @@ variables > Actions**. The workflows authenticate DVC with the DagsHub username
 and token, while `project/src/mlflow_config.py` calls `dagshub.init(...)` before
 training, validation, and registration.
 
+For CI authentication, the token is also registered with
+`dagshub.auth.add_app_token()` and exported as `DAGSHUB_USER_TOKEN`. This avoids
+the interactive OAuth flow, which cannot complete on a headless GitHub Actions
+runner.
+
 The local `sqlite:///mlflow.db` file remains only as a local-development fallback
 when `DAGSHUB_TOKEN` is not set. It is not used by the GitHub Actions jobs.
 

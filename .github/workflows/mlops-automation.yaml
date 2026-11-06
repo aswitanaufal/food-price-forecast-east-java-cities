@@ -70,16 +70,16 @@ jobs:
           DAGSHUB_REPO_OWNER: aswitanaufal
           DAGSHUB_REPO_NAME: food-price-forecast-east-java-cities
         run: |
+          export DAGSHUB_USER_TOKEN="$DAGSHUB_TOKEN"
+          export MLFLOW_TRACKING_USERNAME="$DAGSHUB_REPO_OWNER"
+          export MLFLOW_TRACKING_PASSWORD="$DAGSHUB_TOKEN"
+          export PYTHONPATH="$GITHUB_WORKSPACE/project/src"
           python - <<'PY'
           import mlflow
-          import dagshub
           from mlflow import MlflowClient
+          from mlflow_config import configure_mlflow
 
-          dagshub.init(
-              repo_owner="aswitanaufal",
-              repo_name="food-price-forecast-east-java-cities",
-              mlflow=True,
-          )
+          configure_mlflow()
           print("MLflow tracking URI:", mlflow.get_tracking_uri())
           experiments = MlflowClient().search_experiments()
           print("DagsHub MLflow connection succeeded.")
