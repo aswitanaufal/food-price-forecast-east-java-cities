@@ -1,0 +1,87 @@
+name: MLOps Automation
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+env:
+  PYTHON_VERSION: "3.11"
+  MAX_MAE: "3500"
+  MAX_RMSE: "5000"
+  MAX_MAPE: "30"
+
+jobs:
+  test:
+    name: Automated tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirement.txt
+      - name: Run pytest
+        run: pytest project/tests -q
+
+  train-evaluate-register:
+    name: Train, evaluate, and register
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    env:
+      DAGSHUB_TOKEN: ${{ secrets.DAGSHUB_TOKEN }}
+      DAGSHUB_REPO_OWNER: aswitanaufal
+      DAGSHUB_REPO_NAME: food-price-forecast-east-java-cities
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirement.txt
+      - name: Pull latest DVC data
+        env:
+          DAGSHUB_USER: aswitanaufal
+          DAGSHUB_TOKEN: ${{ secrets.DAGSHUB_TOKEN }}
+        run: |
+          test -n "$DAGSHUB_TOKEN"
+          dvc remote modify --local origin auth basic
+          dvc remote modify --local origin user "$DAGSHUB_USER"
+          dvc remote modify --local origin password "$DAGSHUB_TOKEN"
+          dvc pull -r origin
+      - name: Train model
+        run: |
+          python project/src/train.py \
+            --alpha 0.1 \
+            --metrics-output training-summary.json
+      - name: Validate model threshold
+        run: |
+          RUN_ID=$(python -c "import json; print(json.load(open('training-summary.json'))['run_id'])")
+          python project/src/validate_model.py \
+            --run-id "$RUN_ID" \
+            --metrics-output validation-summary.json \
+            --max-mae "$MAX_MAE" \
+            --max-rmse "$MAX_RMSE" \
+            --max-mape "$MAX_MAPE"
+          echo "RUN_ID=$RUN_ID" >> "$GITHUB_ENV"
+      - name: Register model as Staging
+        run: |
+          python project/src/register_model.py --run-id "$RUN_ID"
+      - name: Upload training evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mlops-training-evidence
+          path: |
+            training-summary.json
+            validation-summary.json
