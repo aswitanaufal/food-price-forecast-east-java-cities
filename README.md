@@ -119,6 +119,12 @@ and `30`; replace them with the exact thresholds from LK-01 before submission.
 4. Open the public MLflow UI, locate experiment `Food Price Forecasting - East Java`,
    and show the registered `EastJavaFoodPriceForecast` version with stage `Staging`.
 
+The Ridge hyperparameter is named `alpha`. It defaults
+to `0.1` for push and pull-request-triggered runs. To test another value without
+editing the workflow, open **Actions > MLOps Automation > Run workflow**, enter
+the desired `alpha`, and start the run. The selected value is logged in MLflow
+as the `alpha` parameter.
+
 ## Data Versioning
 For now, this project uses DVC (Data Version Control) to track changes in raw datasets generated from PIHPS and Open-Meteo data ingestion process. DVC allows each dataset update to be recorded as a new version while keeping the actual dataset separate from Git source code. This method used some workflow:
 1. Data Ingestion: new raw data will automatically collected from PIHPS and Open-Meteo based on Auto Ingest above
