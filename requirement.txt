@@ -1,6 +1,6 @@
 # Data Processing & Feature Engineering
 pandas>=2.0.0
-numpy>=1.24.0
+numpy>=2.5.4
 scikit-learn>=1.3.0
 
 # Data Ingestion (PIHPS & Open-Meteo)
