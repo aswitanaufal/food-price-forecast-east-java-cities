@@ -45,7 +45,11 @@ jobs:
           DAGSHUB_USER: aswitanaufal
           DAGSHUB_TOKEN: ${{ secrets.DAGSHUB_TOKEN }}
         run: |
-          test -n "$DAGSHUB_TOKEN"
+          if [ -z "${DAGSHUB_TOKEN:-}" ]; then
+            echo "::error::DAGSHUB_TOKEN is empty. Create a repository Actions secret with exactly this name."
+            exit 1
+          fi
+          echo "::add-mask::$DAGSHUB_TOKEN"
           dvc remote modify --local origin auth basic
           dvc remote modify --local origin user "$DAGSHUB_USER"
           dvc remote modify --local origin password "$DAGSHUB_TOKEN"

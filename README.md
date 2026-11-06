@@ -93,6 +93,12 @@ training, validation, and registration.
 The local `sqlite:///mlflow.db` file remains only as a local-development fallback
 when `DAGSHUB_TOKEN` is not set. It is not used by the GitHub Actions jobs.
 
+The secret name is case-sensitive and must be exactly `DAGSHUB_TOKEN`. Create it
+under **Repository secrets**, not only as a local Codespaces secret. If it was
+created under an Actions environment, add that environment name to the
+`train-evaluate-register` job. A successful DVC datasource/storage entry alone
+does not upload files; the ingestion workflow must run `dvc push -r origin`.
+
 The workflow does not place credentials in source code. The values `MAX_MAE`,
 `MAX_RMSE`, and `MAX_MAPE` are currently set in the workflow to `3500`, `5000`,
 and `30`; replace them with the exact thresholds from LK-01 before submission.
