@@ -3,6 +3,10 @@ name: MLOps Automation
 on:
   push:
     branches: [main]
+  workflow_run:
+    workflows: ["Automatic Ingestion and Preprocessing Data"]
+    types: [completed]
+    branches: [main]
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -41,7 +45,10 @@ jobs:
   train-evaluate-register:
     name: Train, evaluate, and register
     needs: test
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: >
+      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'success')
     runs-on: ubuntu-latest
     env:
       DAGSHUB_TOKEN: ${{ secrets.DAGSHUB_TOKEN }}
