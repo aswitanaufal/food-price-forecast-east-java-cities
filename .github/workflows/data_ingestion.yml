@@ -75,5 +75,5 @@ jobs:
           else
             git commit -m "chore: update ingested data"
             echo "Changes committed."
-            git push origin HEAD:ingestion-experiment
+            git push origin HEAD:main
           fi
