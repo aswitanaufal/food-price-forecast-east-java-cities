@@ -231,14 +231,15 @@ For environments that use MLflow model aliases, the active model can also be loa
 
 ### Overview
 
-This project provides a Flask REST API for serving the trained Ridge Regression model used for East Java food price forecasting.
+This project provides a FastAPI REST API for serving the trained Ridge Regression model used for East Java food price forecasting.
 
 The trained model is exported from MLflow Model Registry and serialized as `model.joblib`. The model includes its preprocessing pipeline, including numerical imputation, standardization, and categorical encoding.
 
 The inference API exposes two endpoints:
 
 - `GET /health`: Checks whether the service is running and the model is loaded.
-- `POST /predict`: Accepts food price and weather features as JSON and returns the predicted price.
+- `POST /predict`: Accepts food price and weather features as JSON and returns each prediction together with its city and commodity.
+- `GET /predict/latest`: Uses the latest complete feature row for every city and commodity in the bundled dataset.
 
 ### Project Structure
 
@@ -266,7 +267,7 @@ Run the following command from the repository root:
 docker build \
   -f project/deployment/Dockerfile \
   -t food-price-api:1.0 \
-  project/deployment
+  .
 
 ### Run the Container
 
@@ -308,7 +309,23 @@ curl -X POST http://localhost:8000/predict \
     ]
   }'
 
-The API returns a JSON response containing the predicted food price.
+The API returns a JSON response containing each predicted food price and its city/commodity label.
+
+### Running the orchestrated system
+
+The root `docker-compose.yaml` starts the inference API and MLflow server on the
+same custom bridge network. MLflow's SQLite database is persisted in the
+`mlflow-db` named volume, while the artifact directory is persisted through the
+host-mounted `mlruns` directory:
+
+```bash
+docker compose up -d
+docker compose ps
+curl http://localhost:8000/predict/latest
+```
+
+The API uses the MLflow service name (`mlflow-server`) for service discovery and
+waits for its health check before starting.
 
 ### Model Artifact Versioning
 
