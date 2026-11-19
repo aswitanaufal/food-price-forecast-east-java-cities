@@ -8,16 +8,17 @@ ENV PYTHONUNBUFFERED=1
 WORKDIR /app
 
 # Install dependencies
-COPY requirements.txt .
+COPY project/deployment/requirements.txt .
 
 RUN python -m pip install --no-cache-dir --upgrade pip \
     && python -m pip install --no-cache-dir -r requirements.txt
 
-# Copy the API code and the exported trained model to the image
-COPY app.py .
-COPY model.joblib .
+# Copy the API code, exported model, and feature data used by /predict/latest.
+COPY project/deployment/app.py .
+COPY project/deployment/model.joblib .
+COPY project/data/processed/food_price_features.csv .
 
-# Flask listens on port 8000
+# Uvicorn listens on port 8000
 EXPOSE 8000
 
-CMD ["python", "app.py"]
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
