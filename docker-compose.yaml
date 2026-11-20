@@ -6,7 +6,10 @@ services:
     ports:
       - "8000:8000"
     environment:
-      MLFLOW_TRACKING_URI: http://mlflow-server:5000
+      DAGSHUB_TOKEN: ${DAGSHUB_TOKEN:-}
+      DAGSHUB_REPO_OWNER: aswitanaufal
+      DAGSHUB_REPO_NAME: food-price-forecast-east-java-cities
+      MODEL_URI: models:/EastJavaFoodPriceForecast@champion
     depends_on:
       mlflow-server:
         condition: service_healthy
