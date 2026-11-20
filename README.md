@@ -233,7 +233,11 @@ For environments that use MLflow model aliases, the active model can also be loa
 
 This project provides a FastAPI REST API for serving the trained Ridge Regression model used for East Java food price forecasting.
 
-The trained model is exported from MLflow Model Registry and serialized as `model.joblib`. The model includes its preprocessing pipeline, including numerical imputation, standardization, and categorical encoding.
+The API loads `models:/EastJavaFoodPriceForecast@champion` directly from the
+DagsHub MLflow Model Registry when `DAGSHUB_TOKEN` is configured. Without that
+token, local development falls back to `model.joblib`. The model includes its
+preprocessing pipeline, including numerical imputation, standardization, and
+categorical encoding.
 
 The inference API exposes two endpoints:
 
@@ -319,13 +323,16 @@ same custom bridge network. MLflow's SQLite database is persisted in the
 host-mounted `mlruns` directory:
 
 ```bash
+export DAGSHUB_TOKEN="your-dagshub-token"
 docker compose up -d
 docker compose ps
 curl http://localhost:8000/predict/latest
 ```
 
-The API uses the MLflow service name (`mlflow-server`) for service discovery and
-waits for its health check before starting.
+The API uses the DagsHub token to authenticate and load the registered
+Production model. The local `mlflow-server` remains available as a separate
+Compose service for network/orchestration testing; it is not the source of the
+DagsHub-registered model.
 
 ### Model Artifact Versioning
 

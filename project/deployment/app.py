@@ -1,10 +1,14 @@
 from pathlib import Path
 from typing import Any
+import os
 
 import joblib
+import mlflow
 import numpy as np
 import pandas as pd
 from fastapi import FastAPI, HTTPException
+from mlflow import MlflowClient
+from mlflow.exceptions import MlflowException
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -29,11 +33,67 @@ NUMERIC_FEATURES = [
 ]
 CATEGORICAL_FEATURES = ["city", "commodity", "weather_code"]
 FEATURE_COLUMNS = NUMERIC_FEATURES + CATEGORICAL_FEATURES
+MODEL_URI = "models:/EastJavaFoodPriceForecast@champion"
 
-if not MODEL_PATH.exists():
-    raise FileNotFoundError(f"Model file not found: {MODEL_PATH}")
 
-model = joblib.load(MODEL_PATH)
+def load_registered_model(model_uri: str) -> tuple[Any, str]:
+    try:
+        return mlflow.pyfunc.load_model(model_uri), model_uri
+    except MlflowException as error:
+        if "@" not in model_uri:
+            raise
+
+        model_name = model_uri.removeprefix("models:/").split("@", 1)[0]
+        versions = MlflowClient().search_model_versions(
+            f"name='{model_name}'"
+        )
+        if not versions:
+            raise RuntimeError(
+                f"No registered versions found for model '{model_name}'."
+            ) from error
+
+        latest_version = max(versions, key=lambda version: int(version.version))
+        version_uri = f"models:/{model_name}/{latest_version.version}"
+        try:
+            return mlflow.pyfunc.load_model(version_uri), version_uri
+        except MlflowException as version_error:
+            raise RuntimeError(
+                f"Could not load registered model '{model_name}'."
+            ) from version_error
+
+
+def load_model() -> tuple[Any, str]:
+    token = os.getenv("DAGSHUB_TOKEN") or os.getenv("DAGSHUB_USER_TOKEN")
+    if token:
+        import dagshub
+
+        owner = os.getenv("DAGSHUB_REPO_OWNER", "aswitanaufal")
+        repository = os.getenv(
+            "DAGSHUB_REPO_NAME",
+            "food-price-forecast-east-java-cities",
+        )
+        os.environ["DAGSHUB_USER_TOKEN"] = token
+        os.environ["MLFLOW_TRACKING_USERNAME"] = owner
+        os.environ["MLFLOW_TRACKING_PASSWORD"] = token
+        dagshub.auth.add_app_token(token)
+        dagshub.init(
+            repo_owner=owner,
+            repo_name=repository,
+            mlflow=True,
+        )
+
+        model_uri = os.getenv("MODEL_URI", MODEL_URI)
+        return load_registered_model(model_uri)
+
+    if not MODEL_PATH.exists():
+        raise FileNotFoundError(
+            "DAGSHUB_TOKEN is required to load the registered model. "
+            f"Local fallback not found: {MODEL_PATH}"
+        )
+    return joblib.load(MODEL_PATH), f"local:{MODEL_PATH.name}"
+
+
+model, loaded_model_uri = load_model()
 app = FastAPI(title="East Java Food Price Forecast API", version="1.0.0")
 
 
@@ -59,7 +119,10 @@ def prepare_input(instances: Any) -> pd.DataFrame:
 
     data = data[FEATURE_COLUMNS].copy()
     for column in NUMERIC_FEATURES:
-        data[column] = pd.to_numeric(data[column], errors="coerce")
+        data[column] = pd.to_numeric(
+            data[column],
+            errors="coerce",
+        ).astype("float64")
     for column in ["city", "commodity"]:
         data[column] = data[column].apply(
             lambda value: str(value) if pd.notna(value) else None
@@ -132,7 +195,11 @@ def index() -> dict[str, Any]:
 
 @app.get("/health")
 def health() -> dict[str, Any]:
-    return {"status": "ok", "model_loaded": model is not None}
+    return {
+        "status": "ok",
+        "model_loaded": model is not None,
+        "model_uri": loaded_model_uri,
+    }
 
 
 @app.post("/predict")
