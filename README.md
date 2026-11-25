@@ -106,7 +106,8 @@ does not upload files; the ingestion workflow must run `dvc push -r origin`.
 
 The workflow does not place credentials in source code. The values `MAX_MAE`,
 `MAX_RMSE`, and `MAX_MAPE` are currently set in the workflow to `3500`, `5000`,
-and `30`; replace them with the exact thresholds from LK-01 before submission.
+and `30`; replace them with the project's agreed evaluation thresholds before
+submission.
 
 ### Demonstrating the chain
 
@@ -350,6 +351,11 @@ export MLFLOW_TRACKING_URI="https://dagshub.com/${DAGSHUB_REPO_OWNER}/${DAGSHUB_
 export MLFLOW_REGISTRY_URI="$MLFLOW_TRACKING_URI"
 export MLFLOW_TRACKING_USERNAME="$DAGSHUB_REPO_OWNER"
 export MLFLOW_TRACKING_PASSWORD="$DAGSHUB_TOKEN"
+if [ -z "${GRAFANA_ADMIN_PASSWORD:-}" ]; then
+  read -rsp "Grafana admin password: " GRAFANA_ADMIN_PASSWORD
+  printf '\n'
+  export GRAFANA_ADMIN_PASSWORD
+fi
 ```
 
 The automated training workflow registers each passing version as `Staging`;
@@ -433,7 +439,7 @@ DagsHub Production model and start the three-replica Compose service:
 mlflow models build-docker \
   --model-uri models:/Production/latest \
   --name east-java-food-price-model:dagshub-production
-docker compose up -d --wait
+docker compose up -d --build --wait
 ```
 
 Capture the running replica evidence and test the Compose endpoint:
@@ -462,6 +468,40 @@ docker compose ps mlflow-model
 Replace `5` with the desired count. Return to three instances with
 `docker compose up -d --scale mlflow-model=3 --wait`. This uses Docker Compose
 scaling, not Docker Swarm.
+
+### Monitoring Dashboard
+
+The MLflow model image provides `/ping` and `/invocations`, but not Prometheus
+metrics. The instrumented API gateway proxies inference requests, records
+latency, throughput per model replica, numeric input distributions, and
+prediction distributions, and exposes them at `http://localhost:8000/metrics`.
+Prometheus scrapes that endpoint every five seconds. cAdvisor supplies CPU and
+memory measurements for the model containers.
+
+The Prometheus target status is available at `http://localhost:9090/targets`.
+Grafana is available at `http://localhost:3000`; sign in as `admin` with the
+`GRAFANA_ADMIN_PASSWORD` entered above. The provisioned **Food Price Model
+Monitoring** dashboard shows p95 inference latency, requests per second by
+replica, non-2xx responses, input-feature means, prediction median, and each
+model replica's CPU and memory use.
+
+Generate traffic so that the Grafana panels have enough samples to display:
+
+```bash
+seq 1 120 | xargs -P 8 -I {} curl -fsS -o /dev/null \
+  -H "Content-Type: application/json" \
+  --data-binary @project/deployment/sample_request.json \
+  "http://localhost:8000/invocations?load_test={}"
+docker compose ps
+curl -fsS http://localhost:8000/metrics | sed -n '1,30p'
+```
+
+For evidence, capture the dashboard in Grafana and the Prometheus targets page
+showing `inference-api` and `cadvisor` as `UP`. The input and prediction
+distributions are drift indicators, not accuracy measurements. Detecting
+model decay conclusively requires collecting ground-truth prices and monitoring
+metrics such as MAE or RMSE against those labels; sustained latency, error,
+feature-distribution, or prediction-distribution changes should trigger review.
 
 ### Model Artifact Versioning
 

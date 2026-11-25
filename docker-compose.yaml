@@ -1,6 +1,6 @@
 services:
   mlflow-model:
-    image: east-java-food-price-model:dagshub-production
+    image: east-java-food-price-model:production
     pull_policy: never
     deploy:
       replicas: 3
@@ -19,15 +19,93 @@ services:
     networks:
       - ml-network
 
-  api-gateway:
+  model-router:
     image: nginx:1.27-alpine
-    ports:
-      - "8000:80"
+    expose:
+      - "80"
     volumes:
       - ./project/deployment/nginx.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
       mlflow-model:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - ml-network
+
+  api-gateway:
+    build:
+      context: .
+      dockerfile: project/deployment/Dockerfile.monitoring
+    environment:
+      MODEL_ROUTER_URL: http://model-router:80
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz')"
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    depends_on:
+      model-router:
+        condition: service_healthy
+    networks:
+      - ml-network
+
+  prometheus:
+    image: prom/prometheus:v3.0.1
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=15d
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./project/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    depends_on:
+      api-gateway:
+        condition: service_healthy
+    networks:
+      - ml-network
+
+  grafana:
+    image: grafana/grafana:11.4.0
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?Set GRAFANA_ADMIN_PASSWORD}
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./project/monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./project/monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      prometheus:
+        condition: service_started
+    networks:
+      - ml-network
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.49.2
+    privileged: true
+    devices:
+      - /dev/kmsg:/dev/kmsg
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker:/var/lib/docker:ro
+      - /dev/disk:/dev/disk:ro
+    expose:
+      - "8080"
     networks:
       - ml-network
 
@@ -63,3 +141,5 @@ networks:
 
 volumes:
   mlflow-db:
+  prometheus-data:
+  grafana-data:
