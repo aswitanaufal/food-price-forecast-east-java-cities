@@ -26,3 +26,6 @@ jupyter>=1.0.0
 joblib
 Flask
 docker
+
+# Prometheus metrics gateway
+-r project/deployment/monitoring-requirements.txt
