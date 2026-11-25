@@ -1,0 +1,38 @@
+{
+  "dataframe_split": {
+    "columns": [
+      "price_lag_1",
+      "price_lag_7",
+      "rolling_mean_7",
+      "price_change",
+      "day_of_week",
+      "month",
+      "temperature_mean",
+      "temperature_max",
+      "precipitation_sum",
+      "humidity_mean",
+      "wind_speed_mean",
+      "city",
+      "commodity",
+      "weather_code"
+    ],
+    "data": [
+      [
+        34000.0,
+        34000.0,
+        34000.0,
+        0.0,
+        4.0,
+        7.0,
+        23.679166666666664,
+        29.5,
+        0.0,
+        69.45833333333333,
+        10.1625,
+        "Kota Blitar",
+        "Bawang Merah",
+        "3.0"
+      ]
+    ]
+  }
+}
