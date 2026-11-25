@@ -199,7 +199,9 @@ RMSE is the primary selection metric, while MAE and MAPE are used as supporting 
 
 MLflow Model Registry maintains the model version history. The initial registered model becomes the first version if the registered model name has not been used before. Subsequent registrations under the same name create additional versions.
 
-The selected model transitions through the Staging and Production stages. The `champion` alias identifies the version selected for inference.
+The selected model transitions through the Staging and Production stages. The
+`champion` alias identifies the version selected for inference when the registry
+backend supports alias lookups.
 
 ### Artifact and Dataset Lineage with DVC
 
@@ -222,9 +224,9 @@ The inference script uses the Production model URI:
 
 `models:/EastJavaFoodPriceForecast/Production`
 
-For environments that use MLflow model aliases, the active model can also be loaded through:
-
-`models:/EastJavaFoodPriceForecast@champion`
+The project also assigns the `champion` alias on promotion. If the DagsHub
+registry returns `INVALID_PARAMETER_VALUE` while resolving that alias, use the
+Production URI instead.
 
 
 ## Model Inference API and Docker
@@ -239,18 +241,28 @@ token, local development falls back to `model.joblib`. The model includes its
 preprocessing pipeline, including numerical imputation, standardization, and
 categorical encoding.
 
+The standalone FastAPI container is separate from the Compose deployment.
+The Compose instructions use the `Production` stage URI because DagsHub returned
+`INVALID_PARAMETER_VALUE` for the `@champion` URI in the MLflow CLI test.
+
 The inference API exposes two endpoints:
 
 - `GET /health`: Checks whether the service is running and the model is loaded.
 - `POST /predict`: Accepts food price and weather features as JSON and returns each prediction together with its city and commodity.
 - `GET /predict/latest`: Uses the latest complete feature row for every city and commodity in the bundled dataset.
 
+These endpoints describe the standalone FastAPI container. The Compose
+deployment below serves the DagsHub-registered MLflow model directly through
+`/invocations`.
+
 ### Project Structure
 
 project/deployment/
 ├── app.py
 ├── Dockerfile
+├── nginx.conf
 ├── requirements.txt
+├── sample_request.json
 ├── .dockerignore
 └── model.joblib
 
@@ -317,26 +329,145 @@ The API returns a JSON response containing each predicted food price and its cit
 
 ### Running the orchestrated system
 
-The root `docker-compose.yaml` starts the inference API and MLflow server on the
-same custom bridge network. MLflow's SQLite database is persisted in the
-`mlflow-db` named volume, while the artifact directory is persisted through the
-host-mounted `mlruns` directory:
+The standalone FastAPI instructions above use `/predict`. The root
+`docker-compose.yaml` instead serves the Production model from the DagsHub
+MLflow Registry with MLflow's `/invocations` endpoint. It does not use the
+local SQLite registry or `model.joblib`.
+
+Set the DagsHub tracking URI and credentials in the terminal. If
+`DAGSHUB_TOKEN` is not already available as a Codespaces secret, enter it
+without echoing it:
 
 ```bash
-export DAGSHUB_TOKEN="your-dagshub-token"
-docker compose up -d
-docker compose ps
-curl http://localhost:8000/predict/latest
+if [ -z "${DAGSHUB_TOKEN:-}" ]; then
+  read -rsp "DagsHub token: " DAGSHUB_TOKEN
+  printf '\n'
+  export DAGSHUB_TOKEN
+fi
+export DAGSHUB_REPO_OWNER=aswitanaufal
+export DAGSHUB_REPO_NAME=food-price-forecast-east-java-cities
+export MLFLOW_TRACKING_URI="https://dagshub.com/${DAGSHUB_REPO_OWNER}/${DAGSHUB_REPO_NAME}.mlflow"
+export MLFLOW_REGISTRY_URI="$MLFLOW_TRACKING_URI"
+export MLFLOW_TRACKING_USERNAME="$DAGSHUB_REPO_OWNER"
+export MLFLOW_TRACKING_PASSWORD="$DAGSHUB_TOKEN"
 ```
 
-The API uses the DagsHub token to authenticate and load the registered
-Production model. The local `mlflow-server` remains available as a separate
-Compose service for network/orchestration testing; it is not the source of the
-DagsHub-registered model.
+The automated training workflow registers each passing version as `Staging`;
+it does not promote models to `Production` automatically. Review the
+registered versions and their stages in DagsHub:
+
+```bash
+python - <<'PY'
+from mlflow import MlflowClient
+
+versions = MlflowClient().search_model_versions(
+    "name='EastJavaFoodPriceForecast'"
+)
+for model in sorted(versions, key=lambda item: int(item.version)):
+    print(
+        f"version={model.version}, stage={model.current_stage}, "
+        f"status={model.status}, run_id={model.run_id}"
+    )
+PY
+```
+
+After reviewing the metrics, promote the selected version in the DagsHub
+repository's MLflow **Models** page: open `EastJavaFoodPriceForecast`, select
+the chosen version, and change its stage to `Production`. The automated
+workflow only registers models as `Staging`.
+
+The CLI promotion script is also available:
+
+```bash
+python project/src/promote_model.py --version VERSION --stage Production
+```
+
+Replace `VERSION` with the reviewed version number. If DagsHub responds with
+HTTP 403 on the stage-transition request, verify that the token belongs to a
+user with write access to this repository. Use the DagsHub Models page to
+promote the version if the API continues to deny the transition. Check the
+version's stage again before proceeding.
+
+Confirm the promotion before serving:
+
+```bash
+python - <<'PY'
+from mlflow import MlflowClient
+
+versions = MlflowClient().search_model_versions(
+    "name='EastJavaFoodPriceForecast'"
+)
+production = [model for model in versions if model.current_stage == "Production"]
+if not production:
+    raise SystemExit("No EastJavaFoodPriceForecast version is in Production.")
+for model in production:
+    print(f"version={model.version}, stage={model.current_stage}")
+PY
+```
+
+To test the registered model locally before containerizing it, start MLflow
+serving in one terminal. The DagsHub model URI verified for this deployment is
+`models:/Production/latest`; use the same URI when building the container image:
+
+```bash
+mlflow models serve \
+  --model-uri models:/Production/latest \
+  --host 127.0.0.1 \
+  --port 5001 \
+  --env-manager local
+```
+
+In another terminal, capture the API test output for the report:
+
+```bash
+curl -i http://localhost:5001/ping
+curl -i http://localhost:5001/invocations \
+  -H "Content-Type: application/json" \
+  --data-binary @project/deployment/sample_request.json
+```
+
+Stop the local server with `Ctrl+C`, then build the Docker image from the
+DagsHub Production model and start the three-replica Compose service:
+
+```bash
+mlflow models build-docker \
+  --model-uri models:/Production/latest \
+  --name east-java-food-price-model:dagshub-production
+docker compose up -d --wait
+```
+
+Capture the running replica evidence and test the Compose endpoint:
+
+```bash
+docker compose ps mlflow-model
+curl -i http://localhost:8000/ping
+curl -i http://localhost:8000/invocations \
+  -H "Content-Type: application/json" \
+  --data-binary @project/deployment/sample_request.json
+```
+
+The MLflow model image contains the Production artifact resolved from DagsHub
+at build time, so the token is not passed into the serving containers. When a
+new version is promoted to `Production`, rerun `mlflow models build-docker`
+with the same tag and recreate the containers to serve it.
+
+The Compose file sets `deploy.replicas: 3`. To simulate a higher load, override
+the number of replicas and verify the result in `docker compose ps`:
+
+```bash
+docker compose up -d --scale mlflow-model=5 --wait
+docker compose ps mlflow-model
+```
+
+Replace `5` with the desired count. Return to three instances with
+`docker compose up -d --scale mlflow-model=3 --wait`. This uses Docker Compose
+scaling, not Docker Swarm.
 
 ### Model Artifact Versioning
 
-The exported `model.joblib` is tracked using DVC. Git stores the DVC pointer file, while the configured DVC remote stores the corresponding model artifact.
+The exported `model.joblib` is tracked using DVC for the standalone FastAPI
+image. Git stores the DVC pointer file, while the configured DVC remote stores
+the corresponding model artifact.
 
 Before building the image in a fresh working environment, restore the model artifact if necessary:
 

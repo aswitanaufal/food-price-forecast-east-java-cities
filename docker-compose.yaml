@@ -1,17 +1,32 @@
 services:
-  api-service:
-    build:
-      context: .
-      dockerfile: project/deployment/Dockerfile
+  mlflow-model:
+    image: east-java-food-price-model:dagshub-production
+    pull_policy: never
+    deploy:
+      replicas: 3
+    expose:
+      - "8080"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/ping')"
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - ml-network
+
+  api-gateway:
+    image: nginx:1.27-alpine
     ports:
-      - "8000:8000"
-    environment:
-      DAGSHUB_TOKEN: ${DAGSHUB_TOKEN:-}
-      DAGSHUB_REPO_OWNER: aswitanaufal
-      DAGSHUB_REPO_NAME: food-price-forecast-east-java-cities
-      MODEL_URI: models:/EastJavaFoodPriceForecast@champion
+      - "8000:80"
+    volumes:
+      - ./project/deployment/nginx.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
-      mlflow-server:
+      mlflow-model:
         condition: service_healthy
     networks:
       - ml-network
