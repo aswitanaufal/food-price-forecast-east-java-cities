@@ -20,7 +20,7 @@ dvc>=3.0.0
 pytest>=7.0.0
 
 # Interactive Notebook
-jupyter>=1.0.0
+jupyter>=1.1.1
 
 # Deployment
 joblib
